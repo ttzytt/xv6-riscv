@@ -3,6 +3,9 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "user/user.h"
+// #define FDEBUG
+#include "user/dbg_macros.h"
+
 
 char buf[1024];
 int match(char*, char*);
@@ -12,7 +15,6 @@ grep(char *pattern, int fd)
 {
   int n, m;
   char *p, *q;
-
   m = 0;
   while((n = read(fd, buf+m, sizeof(buf)-m-1)) > 0){
     m += n;
@@ -38,6 +40,10 @@ main(int argc, char *argv[])
 {
   int fd, i;
   char *pattern;
+  DEBUG("argc: %d\n", argc);
+  for(int i = 0; i < argc; i++){
+    DEBUG("in grep arg %d : %s\n", i, argv[i]);
+  }
 
   if(argc <= 1){
     fprintf(2, "usage: grep pattern [file ...]\n");
