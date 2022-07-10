@@ -6,6 +6,9 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#define FDEBUG
+#include "dbg_macros.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -94,4 +97,30 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64 
+sys_trace(){
+  int mask;
+  if(argint(0, &mask) < 0){
+    //从用户态读取第 0 个 32 位的数据
+    return - 1;
+  }
+
+  struct proc *cur_proc = myproc(); // 进行系统调用的这个进程
+
+  cur_proc->trace_mask = mask;
+  return 0;
+}
+
+uint64 
+sys_sysinfo(){
+  struct sysinfo info;
+  struct proc *cur_proc = myproc(); 
+  uint64 usr_addr;
+  info.freemem = get_fremem();
+  info.nproc = get_proc_cnt();
+  try(argaddr(0, &usr_addr), return -1); // 记录用户态的 sysinfo 地址
+  try(copyout(cur_proc->pagetable, usr_addr, (char *)&info, sizeof(info)), return -1);
+  return 0;
 }

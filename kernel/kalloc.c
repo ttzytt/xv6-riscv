@@ -80,3 +80,16 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+uint64 get_fremem(){
+  // 返回空闲内存，用字节作为单位
+  uint64 ret = 0;
+  acquire(&kmem.lock);
+  struct run *free_pagelist = kmem.freelist;
+  while(free_pagelist){
+    free_pagelist = free_pagelist->next;
+    ret++;
+  }
+  release(&kmem.lock);
+  return ret * PGSIZE;
+}

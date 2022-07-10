@@ -150,6 +150,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->trace_mask = 0;
 }
 
 // Create a user page table for a given process,
@@ -259,7 +260,7 @@ int
 fork(void)
 {
   int i, pid;
-  struct proc *np;
+  struct proc *np; // new process
   struct proc *p = myproc();
 
   // Allocate process.
@@ -282,6 +283,9 @@ fork(void)
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
+
+  // 复制 trace mask
+  np->trace_mask = p->trace_mask;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -692,4 +696,19 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+uint
+get_proc_cnt(){
+  struct proc* cur_proc;
+  //proc 是一个数组，定义为：struct proc proc[NPROC];
+  uint ret = 0;
+
+  for(cur_proc = proc; cur_proc < &proc[NPROC]; cur_proc++){
+    acquire(&cur_proc->lock);
+    if(cur_proc->state != UNUSED)
+      ret++;
+    release(&cur_proc->lock);
+  }
+  return ret;
 }
