@@ -80,13 +80,18 @@ kvminithart()
 pte_t *
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
+  //传进来的 pagetable 是根页表
   if(va >= MAXVA)
     panic("walk");
 
   for(int level = 2; level > 0; level--) {
     pte_t *pte = &pagetable[PX(level, va)];
+    // pagetable 是一个指针的数组 pagetable[PX(level, va)] 和 *(pagetable + PX(level, va)) 等价  
+    // 每 9 位对应了一级页表，这里会把 va 左移之后再与一个 511 的 mask，得到这 9 位数字
     if(*pte & PTE_V) {
       pagetable = (pagetable_t)PTE2PA(*pte);
+      //*pte 先查看了这个位置储存的值
+      // 右移 10 位，去除标志位，然后左移 12 位加上偏移量（偏移量为 0）
     } else {
       if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
         return 0;
@@ -431,4 +436,21 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+ 
+void 
+vmprint(pagetable_t pagetable, uint dep){
+  if(dep == 0)
+    printf("page table %p\n", pagetable);
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V){
+      for(int j = 0; j < dep; j++)
+        printf(".. ");
+      uint64 child = PTE2PA(pte);
+      printf("..%d: pte %p pa %p\n", i, pte, child);
+      if(dep < 2)
+        vmprint((pagetable_t) child, dep + 1);
+    }
+  } 
 }

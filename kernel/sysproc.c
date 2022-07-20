@@ -6,6 +6,8 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#define FDEBUG
+#include "dbg_macros.h"
 
 uint64
 sys_exit(void)
@@ -81,6 +83,29 @@ int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+  pagetable_t u_pt = myproc()->pagetable;
+  uint64 fir_addr, mask_addr;
+  uint ck_siz; 
+  uint mask = 0;
+  try(argaddr(0, &fir_addr), return -1);
+  try(argint(1, &ck_siz), return -1);
+  try(argaddr(2, &mask_addr), return -1);
+
+  if(ck_siz > 32){
+    return -1;
+  }
+  
+  pte_t* fir_pte = walk(u_pt, fir_addr, 0);
+  
+  for(int i = 0; i < ck_siz; i++){
+    if((fir_pte[i] & PTE_A) && (fir_pte[i] & PTE_V)){
+      mask |= (1 << i);
+      fir_pte[i] ^= PTE_A; // 复位
+    }
+  }
+  
+  try(copyout(u_pt, (uint* )mask_addr, &mask, sizeof(uint)), return -1);
+
   return 0;
 }
 #endif
