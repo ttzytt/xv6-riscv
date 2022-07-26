@@ -123,7 +123,6 @@ syscall(void)
 {
     int num;
     struct proc *p = myproc();
-
     num = p->trapframe->a7;
     if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
         p->trapframe->a0 = syscalls[num](); // 通过 num 找到需要调用哪个函数
@@ -133,7 +132,6 @@ syscall(void)
           //3: syscall read -> 1023
           printf("%d: syscall %s -> %d\n", p->pid, syscall_names[num - 1], p->trapframe->a0);
         }
-  
     } else {
         printf("%d %s: unknown sys call %d\n", p->pid, p->name, num);
         p->trapframe->a0 = -1;
