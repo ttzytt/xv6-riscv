@@ -16,6 +16,7 @@ extern char end[]; // first address after kernel.
 
 struct run {
   struct run *next;
+  uint ref_cnt;
 };
 
 struct {
