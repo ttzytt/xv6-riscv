@@ -67,7 +67,14 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } else if((r_scause() == 13 || r_scause() == 15) && is_lazy_addr(r_stval())){
+    // 如果是 page fault，那就直接分配内存
+    uint64 fault_addr = r_stval();
+      if(lazy_alloc(fault_addr) < 0){
+        p->killed = 1;
+      }
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
