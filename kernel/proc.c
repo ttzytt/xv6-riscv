@@ -204,9 +204,9 @@ proc_pagetable(struct proc *p)
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
-  // uvmunmap(pagetable, TRAMPOLINE, 1, 0);
-  // uvmunmap(pagetable, TRAPFRAME, 1, 0);
-  // uvmfree(pagetable, sz);
+  uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+  uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  uvmfree(pagetable, sz);
 }
 
 // a user program that calls exec("/init")

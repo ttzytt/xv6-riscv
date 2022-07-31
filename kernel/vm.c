@@ -5,6 +5,9 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "kalloc_macros.h"
+#define FDEBUG
+#include "dbg_macros.h"
 
 /*
  * the kernel's page table.
@@ -112,6 +115,11 @@ walkaddr(pagetable_t pagetable, uint64 va)
   pte = walk(pagetable, va, 0);
   if(pte == 0)
     return 0;
+  // if(uncopied_cow(pagetable, va)){
+  //   try(cowalloc(pagetable, va), return -1);
+  //   printf("cpyout: alloced\n");
+  // }
+
   if((*pte & PTE_V) == 0)
     return 0;
   if((*pte & PTE_U) == 0)
@@ -150,7 +158,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
       return -1;
     if(*pte & PTE_V)
       panic("mappages: remap");
-    *pte = PA2PTE(pa) | perm | PTE_V;
+    *pte = PA2PTE(pa) | perm | PTE_V;    
     if(a == last)
       break;
     a += PGSIZE;
@@ -170,19 +178,22 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 
   if((va % PGSIZE) != 0)
     panic("uvmunmap: not aligned");
-
-  for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
+  int lpcnt = 0;
+  for(a = va; a < va + npages*PGSIZE; a += PGSIZE, lpcnt++){
     if((pte = walk(pagetable, a, 0)) == 0)
       panic("uvmunmap: walk");
     if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+      continue;
+      // panic("uvmunmap: not mapped");
     if(PTE_FLAGS(*pte) == PTE_V) // 只有 V，但是不能读写或者执行
       panic("uvmunmap: not a leaf");
+    
     if(do_free){
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
+      // printf("uvmunmap, freed, cnt=%d pa=%p\n", lpcnt, pa);
     }
-    *pte = 0;
+    *pte = 0;  
   }
 }
 
@@ -311,19 +322,19 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
-    
+
     *pte &= (~PTE_W);
     *pte |= PTE_C;
     flags = PTE_FLAGS(*pte);
     // if((mem = kalloc()) == 0)
     //   goto err;
     // memmove(mem, (char*)pa, PGSIZE);
-    // printf("orig flag %d after %d\n", flags, ((flags & (~PTE_W)) | PTE_C) );
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
-      
+      printf("uvmcopy failed\n");
       kfree(mem);
       goto err;
     }
+    refcnt_inc(pa);
   }
   return 0;
 
@@ -355,11 +366,12 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
-    if(!pa0 && uncopied_cow(pagetable, va0)){
-      cowalloc(pagetable, va0);
+    //TODO: 为什么这个东西放在 walkaddr 后面就出错，前面就没问题
+    // 这个应该是，cowalloc 之后物理地址就变了
+    if(uncopied_cow(pagetable, va0)){
+      try(cowalloc(pagetable, va0), return -1);
     }
-
+    pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
     n = PGSIZE - (dstva - va0);
@@ -443,32 +455,35 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 }
 
 int cowalloc(pagetable_t pgtbl, uint64 va){
-  printf("cowalloc used\n");
   pte_t* pte = walk(pgtbl, va, 0);
   uint64 perm = PTE_FLAGS(*pte);
 
   if(pte == 0) return -1;
-  uint64 prev_pa = PTE2PA(*pte);
+  uint64 prev_sta = PTE2PA(*pte);
   uint64 newpage = kalloc();
   if(!newpage){
     return -1;
   }
   uint64 va_sta = PGROUNDDOWN(va);
-  uint64 prev_sta = PGROUNDDOWN(prev_pa);
-  
-  perm &= ~PTE_C;
+
+  perm &= (~PTE_C);
   perm |= PTE_W;
 
-  uvmunmap(pgtbl, va_sta, 1, 0);
+  // printf("cowalloc call uvmunmap, pa = %p\n", prev_sta);
+  
+  memmove(newpage, prev_sta, PGSIZE);
+  uvmunmap(pgtbl, va_sta, 1, 1);
+  
   if(mappages(pgtbl, va_sta, PGSIZE, (uint64)newpage, perm) < 0){
     kfree(newpage);
     return -1;
   }
-  memmove(newpage, prev_sta, PGSIZE);
   return 0;
 }
 
 int uncopied_cow(pagetable_t pgtbl, uint64 va){
+  if(va >= MAXVA)
+    return 0;
   pte_t* pte = walk(pgtbl, va, 0);
   if(pte == 0)
     return 0;

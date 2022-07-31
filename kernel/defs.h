@@ -63,7 +63,10 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
-
+extern          int pg_refcnt[];
+extern          struct spinlock refcnt_lock;
+void            refcnt_inc(void *pa);
+void            refcnt_dec(void *pa);
 // log.c
 void            initlog(int, struct superblock*);
 void            log_write(struct buf*);
