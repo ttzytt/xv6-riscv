@@ -149,6 +149,7 @@ consoleintr(int c)
     }
     break;
   case C('H'): // Backspace
+  // 这里没有 break，所以无论条件是否满足都会继续执行下一个 case
   case '\x7f':
     if(cons.e != cons.w){
       cons.e--;

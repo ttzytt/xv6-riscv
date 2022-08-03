@@ -10,14 +10,33 @@
 #define STACK_SIZE  8192
 #define MAX_THREAD  4
 
+struct Context{
+  uint64 ra;
+  uint64 sp;
+
+  // callee-saved
+  uint64 s0;
+  uint64 s1;
+  uint64 s2;
+  uint64 s3;
+  uint64 s4;
+  uint64 s5;
+  uint64 s6;
+  uint64 s7;
+  uint64 s8;
+  uint64 s9;
+  uint64 s10;
+  uint64 s11;
+};
 
 struct thread {
   char       stack[STACK_SIZE]; /* the thread's stack */
   int        state;             /* FREE, RUNNING, RUNNABLE */
+  struct Context ctx;
 };
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
-extern void thread_switch(uint64, uint64);
+extern void thread_switch(uint64 old, uint64 new);
               
 void 
 thread_init(void)
@@ -41,7 +60,7 @@ thread_schedule(void)
   t = current_thread + 1;
   for(int i = 0; i < MAX_THREAD; i++){
     if(t >= all_thread + MAX_THREAD)
-      t = all_thread;
+      t = all_thread; // 循环
     if(t->state == RUNNABLE) {
       next_thread = t;
       break;
@@ -57,11 +76,12 @@ thread_schedule(void)
   if (current_thread != next_thread) {         /* switch threads?  */
     next_thread->state = RUNNING;
     t = current_thread;
-    current_thread = next_thread;
+    current_thread = next_thread; // 当前线程变成下一个线程了
     /* YOUR CODE HERE
      * Invoke thread_switch to switch from t to next_thread:
      * thread_switch(??, ??);
      */
+    thread_switch((uint64) &t->ctx, (uint64) &next_thread->ctx);
   } else
     next_thread = 0;
 }
@@ -75,6 +95,8 @@ thread_create(void (*func)())
     if (t->state == FREE) break;
   }
   t->state = RUNNABLE;
+  t->ctx.ra = (uint64) func;
+  t->ctx.sp = (uint64) &t->stack + (STACK_SIZE - 1);
   // YOUR CODE HERE
 }
 
