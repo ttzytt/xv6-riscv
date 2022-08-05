@@ -95,9 +95,9 @@ thread_create(void (*func)())
     if (t->state == FREE) break;
   }
   t->state = RUNNABLE;
+  // YOUR CODE HERE
   t->ctx.ra = (uint64) func;
   t->ctx.sp = (uint64) &t->stack + (STACK_SIZE - 1);
-  // YOUR CODE HERE
 }
 
 void 

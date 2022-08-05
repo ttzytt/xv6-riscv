@@ -8,19 +8,20 @@
 #define NBUCKET 5
 #define NKEYS 100000
 
-struct entry {
+struct entry { // 实际上是一个储存 key 和 val 的链表
   int key;
   int value;
   struct entry *next;
 };
 struct entry *table[NBUCKET];
+pthread_mutex_t bkt_lock[NBUCKET];
 int keys[NKEYS];
 int nthread = 1;
 
 
 double
 now()
-{
+{ // 获取当前时间
  struct timeval tv;
  gettimeofday(&tv, 0);
  return tv.tv_sec + tv.tv_usec / 1000000.0;
@@ -33,14 +34,15 @@ insert(int key, int value, struct entry **p, struct entry *n)
   e->key = key;
   e->value = value;
   e->next = n;
-  *p = e;
+  *p = e; // 把 p table[i] 的起始点改成 e
 }
 
 static 
 void put(int key, int value)
 {
   int i = key % NBUCKET;
-
+  
+  pthread_mutex_lock(&bkt_lock[i]);
   // is the key already present?
   struct entry *e = 0;
   for (e = table[i]; e != 0; e = e->next) {
@@ -52,9 +54,9 @@ void put(int key, int value)
     e->value = value;
   } else {
     // the new is new.
-    insert(key, value, &table[i], table[i]);
+    insert(key, value, &table[i], table[i]); // 在 table[i] 的最前面插入一个 key val 对
   }
-
+  pthread_mutex_unlock(&bkt_lock[i]);
 }
 
 static struct entry*
@@ -62,12 +64,13 @@ get(int key)
 {
   int i = key % NBUCKET;
 
-
+  pthread_mutex_lock(&bkt_lock[i]);
+  
   struct entry *e = 0;
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key) break;
   }
-
+  pthread_mutex_unlock(&bkt_lock[i]);
   return e;
 }
 
@@ -98,13 +101,19 @@ get_thread(void *xa)
   return NULL;
 }
 
+void init_locks(){
+  for(int i = 0; i < NBUCKET; i++){
+    pthread_mutex_init(&bkt_lock[i], NULL);
+  }
+}
+
 int
 main(int argc, char *argv[])
 {
   pthread_t *tha;
   void *value;
   double t1, t0;
-
+  init_locks();
 
   if (argc < 2) {
     fprintf(stderr, "Usage: %s nthreads\n", argv[0]);
