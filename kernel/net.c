@@ -164,7 +164,7 @@ static void
 net_tx_eth(struct mbuf *m, uint16 ethtype)
 {
   struct eth *ethhdr;
-
+  // int sz = sizeof(struct eth);
   ethhdr = mbufpushhdr(m, *ethhdr);
   memmove(ethhdr->shost, local_mac, ETHADDR_LEN);
   // In a real networking stack, dhost would be set to the address discovered

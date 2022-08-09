@@ -195,7 +195,7 @@ devintr()
     }
 #ifdef LAB_NET
     else if(irq == E1000_IRQ){
-      e1000_intr();
+      e1000_intr(); 
     }
 #endif
     else if(irq){

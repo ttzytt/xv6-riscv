@@ -7,6 +7,8 @@
 #include "defs.h"
 #include "e1000_dev.h"
 #include "net.h"
+#define NULL 0
+void net_rx(struct mbuf *m);
 
 #define TX_RING_SIZE 16
 static struct tx_desc tx_ring[TX_RING_SIZE] __attribute__((aligned(16)));
@@ -102,7 +104,32 @@ e1000_transmit(struct mbuf *m)
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
+  acquire(&e1000_lock);
+  uint idx = regs[E1000_TDT]; // transmit tail，表明第一个空闲的环形描述符
+  struct tx_desc *desc = &tx_ring[idx];
   
+  if(!(desc->status & E1000_TXD_STAT_DD)){ // 是否传输完成，没传完的话说明环形缓冲区没了，是错误
+    release(&e1000_lock);
+    return -1;
+  }
+
+  if(tx_mbufs[idx] != NULL){ // 这里的 buf 指向要发的数据包
+    // 因为前面的判断，这里肯定是发送完了
+    // tx_mbufs 是不需要分配的，直接指向 m 这个参数
+    mbuffree(tx_mbufs[idx]);
+    tx_mbufs[idx] = NULL;
+  }
+
+  desc->addr = m->head;
+  desc->length = m->len;
+
+  desc->cmd = E1000_TXD_CMD_RS | E1000_TXD_CMD_EOP; // 表明这个标识符是包中最后一个，并且发送完了需要报告
+  
+  tx_mbufs[idx] = m; // 方便之后清理
+
+  regs[E1000_TDT] = (idx + 1) % TX_RING_SIZE;
+
+  release(&e1000_lock);
   return 0;
 }
 
@@ -115,6 +142,24 @@ e1000_recv(void)
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
+  while(1){
+    uint idx = (regs[E1000_RDT] + 1) % RX_RING_SIZE; //head 到 tail 是一个空的缓冲区
+
+    struct rx_desc *desc = &rx_ring[idx];
+    if(!(desc->status & E1000_RXD_STAT_DD)){
+      return;
+    } 
+    rx_mbufs[idx]->len = desc->length; // desc->addr 已经被设置成了 rx_mbufs 里
+
+    net_rx(rx_mbufs[idx]);
+
+    rx_mbufs[idx] = mbufalloc(0);
+    desc->addr = rx_mbufs[idx]->head;
+    desc->status = 0;
+
+    regs[E1000_RDT] = idx;
+  }
+  
 }
 
 void
@@ -124,6 +169,6 @@ e1000_intr(void)
   // without this the e1000 won't raise any
   // further interrupts.
   regs[E1000_ICR] = 0xffffffff;
-
+  
   e1000_recv();
 }
