@@ -82,7 +82,7 @@ countfree()
 {
   uint64 sz0 = (uint64)sbrk(0);
   int n = 0;
-
+  
   while(1){
     uint64 a = (uint64) sbrk(4096);
     if(a == 0xffffffffffffffff){
