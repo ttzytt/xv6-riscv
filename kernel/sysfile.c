@@ -15,7 +15,8 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
-
+#define FDEBUG
+#include "dbg_macros.h"
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -316,6 +317,41 @@ sys_open(void)
     }
   }
 
+  if(!(omode & O_NOFOLLOW)){
+    int rec_left = 10;
+    int is_symlink = ip->type == T_SYMLINK;
+    struct inode* next_file;
+    while(rec_left && is_symlink){
+      
+      if(readi(ip, 0, path, 0, MAXPATH) == 0){
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+
+      if((next_file = namei(path)) == 0){
+        // namei 从路径获得 inode 
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      DEBUG("path: %s\n", path);
+      is_symlink = next_file->type == T_SYMLINK;
+      iunlockput(ip); // 储存链接的文件已经使用完了
+      ip = next_file;
+      rec_left--;  
+      ilock(ip);  // 加锁，放在这里不是前面是因为，这个锁后面需要用
+    }
+    DEBUG("rec_left: %d\n", rec_left);
+    if(rec_left <= 0){
+      DEBUG("open: bad ret\n");
+      iunlockput(ip);
+      end_op();
+      DEBUG("reted\n");
+      return -1;
+    }
+  }
+
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
     iunlockput(ip);
     end_op();
@@ -349,6 +385,26 @@ sys_open(void)
   end_op();
 
   return fd;
+}
+
+uint64 sys_symlink(){
+  char tar_path[MAXPATH], path[MAXPATH];
+  try(argstr(0, tar_path, MAXPATH), return -1);
+  try(argstr(1, path, MAXPATH), return -1);
+  struct inode* ip;
+
+
+  begin_op();
+  ip = create(path, T_SYMLINK, 0, 0); // 创建文件
+  if(ip == 0){
+    end_op();
+    return -1;
+  }
+  try(writei(ip, 0, tar_path, 0, strlen(tar_path)), end_op(); return -1); // off 为 0 代表不偏移
+  // 把链接的路径放进新文件的第一个块
+  iunlockput(ip);
+  end_op();
+  return 0;
 }
 
 uint64

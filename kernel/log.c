@@ -34,7 +34,7 @@
 // and to keep track in memory of logged block# before commit.
 struct logheader {
   int n;
-  int block[LOGSIZE];
+  int block[LOGSIZE]; // 有哪些块是待写入 log 的，这里记录的是块号
 };
 
 struct log {
@@ -73,7 +73,9 @@ install_trans(int recovering)
   for (tail = 0; tail < log.lh.n; tail++) {
     struct buf *lbuf = bread(log.dev, log.start+tail+1); // read log block
     struct buf *dbuf = bread(log.dev, log.lh.block[tail]); // read dst
+    // 这里是从内存获得的 head，恢复的时候不会造成问题？
     memmove(dbuf->data, lbuf->data, BSIZE);  // copy block to dst
+    // 把 log 块中的数据拷贝到其实际应该在的位置
     bwrite(dbuf);  // write dst to disk
     if(recovering == 0)
       bunpin(dbuf);
@@ -103,12 +105,14 @@ static void
 write_head(void)
 {
   struct buf *buf = bread(log.dev, log.start);
-  struct logheader *hb = (struct logheader *) (buf->data);
+  struct logheader *hb = (struct logheader *) (buf->data); // 实际磁盘中的 header
   int i;
   hb->n = log.lh.n;
   for (i = 0; i < log.lh.n; i++) {
-    hb->block[i] = log.lh.block[i];
+    hb->block[i] = log.lh.block[i]; // 把内存中的复制到磁盘中的buf-
   }
+  // 磁盘中 head 的块就代表，已经从 bcache 完成拷贝来了，但是没从 log 块移动到对应块
+  // 这里 commit 了，恢复和 install 时可以按照磁盘中的 head 来拷贝块
   bwrite(buf);
   brelse(buf);
 }
@@ -116,7 +120,7 @@ write_head(void)
 static void
 recover_from_log(void)
 {
-  read_head();
+  read_head(); // 恢复时是从磁盘读的 head
   install_trans(1); // if committed, copy from log to disk
   log.lh.n = 0;
   write_head(); // clear the log
@@ -183,7 +187,9 @@ write_log(void)
   for (tail = 0; tail < log.lh.n; tail++) {
     struct buf *to = bread(log.dev, log.start+tail+1); // log block
     struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
+    // 把所有改变过的块写入 log 块中
     memmove(to->data, from->data, BSIZE);
+    // 把 bcache 中的内容拷贝到了磁盘的 log 块
     bwrite(to);  // write the log
     brelse(from);
     brelse(to);
@@ -224,12 +230,13 @@ log_write(struct buf *b)
 
   for (i = 0; i < log.lh.n; i++) {
     if (log.lh.block[i] == b->blockno)   // log absorption
+      // 检查是否已经被 log 记录了
       break;
   }
   log.lh.block[i] = b->blockno;
   if (i == log.lh.n) {  // Add new block to log?
     bpin(b);
-    log.lh.n++;
+    log.lh.n++; // 增加待写入 log 块的块缓存数量
   }
   release(&log.lock);
 }

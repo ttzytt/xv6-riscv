@@ -8,6 +8,8 @@
 #include "kernel/fs.h"
 #include "kernel/file.h"
 #include "user/user.h"
+#define FDEBUG
+#include "kernel/dbg_macros.h"
 
 #define fail(msg) do {printf("FAILURE: " msg "\n"); failed = 1; goto done;} while (0);
 static int failed = 0;
@@ -87,7 +89,11 @@ testsymlink(void)
     fail("failed to read bytes from b");
 
   unlink("/testsymlink/a");
-  if(open("/testsymlink/b", O_RDWR) >= 0)
+
+  DEBUG("del file sta\n");
+  int ret = open("/testsymlink/b", O_RDWR);
+  DEBUG("ret: %d\n", ret);
+  if(ret >= 0)
     fail("Should not be able to open b after deleting a");
 
   r = symlink("/testsymlink/b", "/testsymlink/a");
@@ -101,6 +107,7 @@ testsymlink(void)
   r = symlink("/testsymlink/nonexistent", "/testsymlink/c");
   if(r != 0)
     fail("Symlinking to nonexistent file should succeed\n");
+  DEBUG("nonexist file suc\n");
 
   r = symlink("/testsymlink/2", "/testsymlink/1");
   if(r) fail("Failed to link 1->2");
@@ -110,7 +117,7 @@ testsymlink(void)
   if(r) fail("Failed to link 3->4");
 
   close(fd1);
-  close(fd2);
+  close(fd2); // 问题
 
   fd1 = open("/testsymlink/4", O_CREATE | O_RDWR);
   if(fd1<0) fail("Failed to create 4\n");
