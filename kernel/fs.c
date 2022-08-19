@@ -198,7 +198,6 @@ ialloc(uint dev, short type)
   int inum;
   struct buf *bp;
   struct dinode *dip;
-
   for(inum = 1; inum < sb.ninodes; inum++){
     bp = bread(dev, IBLOCK(inum, sb));
     dip = (struct dinode*)bp->data + inum%IPB;
@@ -224,8 +223,8 @@ iupdate(struct inode *ip)
   struct buf *bp;
   struct dinode *dip;
 
-  bp = bread(ip->dev, IBLOCK(ip->inum, sb));
-  dip = (struct dinode*)bp->data + ip->inum%IPB;
+  bp = bread(ip->dev, IBLOCK(ip->inum, sb)); // 取得储存 ip 的块缓存
+  dip = (struct dinode*)bp->data + ip->inum%IPB; // dip 是 inode 的块缓存（ip 块缓存加上一定偏移量）
   dip->type = ip->type;
   dip->major = ip->major;
   dip->minor = ip->minor;
@@ -415,7 +414,7 @@ bmap(struct inode *ip, uint bn)
     } 
     brelse(bp);
     
-    bp2 = bread(ip->dev, addr); // bp2 为二级快的缓存
+    bp2 = bread(ip->dev, addr); // bp2 为二级块的缓存
     a = (uint *)bp2->data;
     uint idx_b2 = bn % NINDIRECT;
     if((addr = a[idx_b2]) == 0){
@@ -463,7 +462,7 @@ itrunc(struct inode *ip)
     a = (uint*)bp->data;
     for (i = 0; i < NINDIRECT; i++){
       if(a[i]){
-        struct buf* bp2 = bread(ip->dev, a[i]);
+        struct buf* bp2 = bread(ip->dev, a[i]); // 获取这个块的对应缓存
         uint *a2 = bp2->data;
         for(j = 0; j < NINDIRECT; j++){
           if(a2[j])
@@ -476,10 +475,12 @@ itrunc(struct inode *ip)
         // a[i] 是块号，bp2 是实际的块缓存
       }      
     }
-    brelse(bp);
-    bfree(ip->dev, ip->addrs[NDIRECT + 1]);
+    brelse(bp); // 释放缓存
+    bfree(ip->dev, ip->addrs[NDIRECT + 1]); // 释放磁盘块
     ip->addrs[NDIRECT + 1] = 0; // 不是 + 1
   }
+  ip->size = 0;
+  iupdate(ip);
 }
 
 // Copy stat information from inode.

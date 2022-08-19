@@ -15,7 +15,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
-#define FDEBUG
+// #define FDEBUG
 #include "dbg_macros.h"
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -316,12 +316,10 @@ sys_open(void)
       return -1;
     }
   }
-
   if(!(omode & O_NOFOLLOW)){
     int rec_left = 10;
-    int is_symlink = ip->type == T_SYMLINK;
     struct inode* next_file;
-    while(rec_left && is_symlink){
+    while(rec_left && ip->type == T_SYMLINK){
       
       if(readi(ip, 0, path, 0, MAXPATH) == 0){
         iunlockput(ip);
@@ -336,11 +334,12 @@ sys_open(void)
         return -1;
       }
       DEBUG("path: %s\n", path);
-      is_symlink = next_file->type == T_SYMLINK;
       iunlockput(ip); // 储存链接的文件已经使用完了
       ip = next_file;
       rec_left--;  
       ilock(ip);  // 加锁，放在这里不是前面是因为，这个锁后面需要用
+      // 加这个锁还会读取信息？？？
+      // 注意！！
     }
     DEBUG("rec_left: %d\n", rec_left);
     if(rec_left <= 0){

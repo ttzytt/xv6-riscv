@@ -8,7 +8,7 @@
 #include "kernel/fs.h"
 #include "kernel/file.h"
 #include "user/user.h"
-#define FDEBUG
+// #define FDEBUG
 #include "kernel/dbg_macros.h"
 
 #define fail(msg) do {printf("FAILURE: " msg "\n"); failed = 1; goto done;} while (0);
@@ -117,16 +117,19 @@ testsymlink(void)
   if(r) fail("Failed to link 3->4");
 
   close(fd1);
+  DEBUG("start to close fd2: %d\n", fd2);
   close(fd2); // 问题
 
   fd1 = open("/testsymlink/4", O_CREATE | O_RDWR);
   if(fd1<0) fail("Failed to create 4\n");
+  DEBUG("symlink 1 open\n");
   fd2 = open("/testsymlink/1", O_RDWR);
   if(fd2<0) fail("Failed to open 1\n");
 
   c = '#';
   r = write(fd2, &c, 1);
   if(r!=1) fail("Failed to write to 1\n");
+  DEBUG("sta read 4\n");
   r = read(fd1, &c2, 1);
   if(r!=1) fail("Failed to read from 4\n");
   if(c!=c2)
