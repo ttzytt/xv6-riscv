@@ -15,7 +15,8 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
-// #define FDEBUG
+
+#define FDEBUG
 #include "dbg_macros.h"
 #include "memlayout.h"
 // Fetch the nth word-sized system call argument as a file descriptor

@@ -5,7 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
-// #define FDEBUG
+#define FDEBUG
 #include "dbg_macros.h"
 
 struct cpu cpus[NCPU];

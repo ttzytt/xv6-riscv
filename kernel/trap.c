@@ -1,4 +1,4 @@
-// #define FDEBUG
+#define FDEBUG
 #include "types.h"
 #include "param.h"
 #include "memlayout.h"
@@ -74,12 +74,12 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if((which_dev = devintr()) != 0){
+    // ok
   } else if ((r_scause() == 13 || r_scause() == 15)){
     try(mmap_fault_handler(r_stval()), bad = 1)
   }
-  else if((which_dev = devintr()) != 0){
-    // ok
-  } else{
+  else{
     bad = 1;
   }
 

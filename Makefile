@@ -86,8 +86,8 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -g3 -O -fno-omit-frame-pointer -ggdb
-
+CFLAGS = -Wall -O2 -fno-omit-frame-pointer -ggdb -UFDEBUG
+# ????? 加一个 g3 就过不了 writebig ？？？？？ 我人傻了
 ifdef LAB
 LABUPPER = $(shell echo $(LAB) | tr a-z A-Z)
 XCFLAGS += -DSOL_$(LABUPPER) -DLAB_$(LABUPPER)

@@ -14,7 +14,7 @@
 #include "sleeplock.h"
 #include "file.h"
 
-// #define FDEBUG
+#define FDEBUG
 #include "dbg_macros.h"
 
 /*
@@ -481,10 +481,6 @@ mmap_writeback(pagetable_t pt, uint64 src_va, uint64 len, struct mmap_vma* vma){
       }
       iunlock(vma->file->ip);
       end_op();
-    }
-    if (PTE2PA(*pte) == 0){
-      int fuck = 1;
-      DEBUG("FUCK\n");
     }
     kfree(PTE2PA(*pte));
     *pte = 0;
