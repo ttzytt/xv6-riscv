@@ -6,6 +6,17 @@
 #include "defs.h"
 #include "fs.h"
 
+#include "spinlock.h"
+#include "proc.h"
+#include "fcntl.h"
+
+
+#include "sleeplock.h"
+#include "file.h"
+
+// #define FDEBUG
+#include "dbg_macros.h"
+
 /*
  * the kernel's page table.
  */
@@ -431,4 +442,52 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+int
+mmap_writeback(pagetable_t pt, uint64 src_va, uint64 len, struct mmap_vma* vma){
+// 把带脏位的页帧写回文件中，并且取消映射
+// 写回的是 src_va 开始的，长度为 len
+
+  uint64 a;
+  pte_t *pte;
+  for(a = PGROUNDDOWN(src_va); a < PGROUNDUP(src_va + len); a += PGSIZE){
+    DEBUG("mmap a: %p\n", a); 
+    if((pte = walk(pt, a, 0)) == 0){ // 多写了一个等号
+      panic("mmap_writeback: walk");
+    } // 可能是懒分配
+      
+    if(PTE_FLAGS(*pte) == PTE_V)
+      panic("mmap_writeback: not leaf");
+
+    if(!(*pte & PTE_V)) continue; // 懒分配
+
+    if((*pte & PTE_D) && (vma->flags & MAP_SHARED)){ 
+      // 写回
+      begin_op();
+      ilock(vma->file->ip);
+      // 第一次的时候，a 会比 src_va 小
+
+      uint64 copied_len = a - src_va;
+      if(a < src_va){ // 第一个页帧，不是完整的
+        writei(vma->file->ip, 1, src_va, 0, src_va - a); 
+        // 拷贝长度为 src_va - a 是因为该页帧前面的都是空的
+      } else if(a > src_va && copied_len + PGSIZE > vma->sz){
+        // a - src_va 是现在已经释放的长度
+        // 这个情况是最后一个页帧，其大小没有满
+        writei(vma->file->ip, 1, a, vma->sz - copied_len, PGSIZE);
+      } else {
+        writei(vma->file->ip, 1, a, copied_len, PGSIZE);
+      }
+      iunlock(vma->file->ip);
+      end_op();
+    }
+    if (PTE2PA(*pte) == 0){
+      int fuck = 1;
+      DEBUG("FUCK\n");
+    }
+    kfree(PTE2PA(*pte));
+    *pte = 0;
+  }
+  return 0;
 }
