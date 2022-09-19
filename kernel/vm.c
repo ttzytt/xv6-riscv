@@ -5,7 +5,6 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
-#include "kalloc_macros.h"
 #define FDEBUG
 #include "dbg_macros.h"
 
